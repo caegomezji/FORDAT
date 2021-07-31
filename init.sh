@@ -1,7 +1,9 @@
 #!/bin/bash
 
+set -e
+
 ## docker creation
-docker build  --network="host" -t caegomezji/fordat:latest .
+#docker build  --network="host" -t caegomezji/fordat:latest .
 
 ## run container
 docker run  -it --rm \
