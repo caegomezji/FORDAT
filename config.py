@@ -19,3 +19,4 @@ db_name = os.getenv('DB_PORT' , '5432')
 db_name = os.getenv('DB_PASSWORD' , '')
 db_name = os.getenv('DB_SCHEMA' , '')
 
+kernels=os.getenv("SERVER_KERNELS" , 1)
