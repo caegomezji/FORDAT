@@ -14,7 +14,7 @@ then
 
     gunicorn -c gunicornconfig.py fordat:server
 else
-    python fordat.py
+    python appProphet.py
 
 
 fi
