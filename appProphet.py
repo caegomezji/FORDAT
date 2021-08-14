@@ -1,6 +1,10 @@
+from flask import Flask
+import config
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 import os
 import pandas as pd
@@ -8,6 +12,8 @@ pd.options.mode.chained_assignment = None # avoid warning of replacing data
 import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
+
+
 
 def create_line_plot(data):
     # sub_data = data[data['Cadena 2020'] == cadena]
@@ -48,9 +54,15 @@ request_path_prefix = None
 if workspace_user:
     request_path_prefix = '/user/' + workspace_user + '/proxy/8050/'
 
-app = dash.Dash(__name__,
-                requests_pathname_prefix=request_path_prefix,
-                external_stylesheets=external_stylesheets)
+
+
+
+
+## server configurations
+server = Flask( config.app_name )
+app = dash.Dash( config.app_name, external_stylesheets=[dbc.themes.BOOTSTRAP] , server=server)
+
+
 
 #from google.colab import drive
 #drive.mount('/content/drive',  force_remount=True)
@@ -244,5 +256,11 @@ def set_display_children(selected_cadena, selected_sector, selected_subsector,fu
         selected_subsector, selected_sector, selected_cadena, future_months
     )
 
-if __name__ == '__main__':
-    app.run_server(debug=True, port= 8052)
+
+print("READY")
+
+##############################
+
+if __name__ == "__main__":
+    
+    app.run_server(host=config.app_host , port=config.app_port, debug=config.app_debug)
