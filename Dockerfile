@@ -8,4 +8,6 @@ RUN python3 -m pip install -v pystan==2.19.1.1
 
 RUN pip install  fbprophet==0.7.1
 
+RUN pip install statsmodels
+
 WORKDIR /var/www 

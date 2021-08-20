@@ -12,7 +12,7 @@ then
     touch log/access-logfile.log
     touch log/error-logfile.log
 
-    gunicorn -c gunicornconfig.py fordat:server
+    gunicorn -c gunicornconfig.py appProphet:server
 else
     python appProphet.py
 
