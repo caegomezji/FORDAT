@@ -17,8 +17,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
 
-
-
 def create_line_plot(data):
     # sub_data = data[data['Cadena 2020'] == cadena]
 
@@ -34,7 +32,7 @@ def filter_df(data, key, value):
 
 def create_forecast_plot(db, sector, pais):
 
-    test, predictions = fordat.forecast_autoarima(db[sector])
+    test, predictions = fordat.forecast_prophet(db[sector])
     print(predictions)
     fig = go.Figure()
     test_df = test.reset_index(name='test')
@@ -139,9 +137,9 @@ app.layout = html.Div([
         dcc.Graph(id='line-plot',  style={'display': 'inline-block'}),
         dcc.Slider(id='future-months',
                   min=1,
-                  max=5,
+                  max=60,
                   value=1,
-                  marks={1: '1',2: '2',3: '3',4: '4', 5: '5'},
+                  #marks={1: '1',2: '2',3: '3',4: '4', 5: '5'},
                   step=None)
     ]),
 
@@ -167,6 +165,8 @@ app.layout = html.Div([
      # Input('subsectors-dropdown', 'value'),
      Input('country-dropdown','value')])
 def update_forecast_title(cadena, sector, country):
+    if country == None:
+        country = 'Global'
     return f'Prediccion de {sector} en {country}. Cadena: {cadena}'
 
 ## Update forecast graph
@@ -179,7 +179,8 @@ def update_forecast_title(cadena, sector, country):
 )
 def update_forecast_div(n_clicks, sector, cadena, pais):
     sub_data = filter_df(filteredData, 'Cadena', cadena)
-    sub_data = filter_df(sub_data, 'Country', pais)
+    if not pais == None:
+        sub_data = filter_df(sub_data, 'Country', pais)
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
     forecast_plot = create_forecast_plot(db, sector, pais)
@@ -284,7 +285,7 @@ def set_landmarks_value(available_options):
      dash.dependencies.Input('future-months','value')])
 def set_display_children(selected_cadena, selected_sector, selected_subsector,future_months):
     future_months = int(future_months)*12
-    return u'{} is in {} of {} prediction for {}'.format(
+    return u'{} is in {} of {} for {}'.format(
         selected_subsector, selected_sector, selected_cadena, future_months
     )
 

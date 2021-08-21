@@ -3,7 +3,8 @@ from statsmodels.tsa.arima.model import ARIMA
 import numpy as np
 from statsmodels.tools.eval_measures import rmse
 import pmdarima as pm
-#from fbprophet import Prophet
+from fbprophet import Prophet
+from time import time
 
 def forcast_arima(data):
     # data[Sector ] == X
@@ -41,7 +42,7 @@ def forecast_autoarima(data):
     # data[Sector ] == X
     data = data.interpolate()
     size = -6 #int(len(data) * 0.80)
-    train, test = data[0:size], data[size:len(data)]
+    train, test = data[0:size], data[size:]
     history = [x for x in train]
     predictions = list()
     future_months = 18
@@ -63,7 +64,7 @@ def forecast_autoarima(data):
 def forecast_prophet(data):
 
     # data[Sector ] == X
-    #data = data.interpolate()
+    data = data.interpolate()
     size = -6 #int(len(data) * 0.80)
     train, test = data[0:size], data[size:len(data)]
     history = [x for x in train]
@@ -71,18 +72,32 @@ def forecast_prophet(data):
     future_months = 18
     test_time = len(test)
 
-    data_model = userInterest[["FOBDOL", "Date"]]
-    data_model.columns = ["y", "ds"]  # prophet model just understando these names
+    #data_model = userInterest[["FOBDOL", "Date"]]
+    data_model =  train.reset_index(name='FOBDOL') #['date', '$$']
 
-    nan_value = float("NaN")
-    data_model.replace("", nan_value, inplace=True)
-    data_model.dropna(inplace=True)
+    data_model.columns = ['ds', 'y' ]#["y", "ds"]  # prophet model just understando these names
 
-    print(data_model.shape)
+    # nan_value = float("NaN")
+    # data_model.replace("", nan_value, inplace=True)
+    # data_model.dropna(inplace=True)
+
+    #print(data_model.shape)
     # if data_model.shape[0] > 3:
     # HERE YOU SHOULD PUT YOUR MODEL
+    print('start model')
     model = Prophet(interval_width=0.95, seasonality_mode='multiplicative')
+
+    print('model defined')
     model.fit(data_model)
+    # time.sleep(120)
 
-
-    return
+    print('model fitted')
+    future_months = 12  # this variable is a slider in the app
+    future = model.make_future_dataframe(periods=future_months, freq='MS')  # predict on months
+    forecast = model.predict(future)
+    predictions = forecast.yhat
+    print('predicted')
+    # in case you want to see its output
+    print(forecast.head(2))
+    print(predictions)
+    return test, predictions
