@@ -12,27 +12,34 @@ import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
 
-def create_line_plot(data):
+def create_line_plot(data, cadena, pais):
     # sub_data = data[data['Cadena 2020'] == cadena]
     # grp = data.groupby(by=['Sector', 'Year'])['FOBDOL'].sum().reset_index()
     grp = data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().reset_index()
     lineplt = px.line(grp, x='Year_month', y='FOBDOL', color='Sector',
-            title='Serie de tiempo Anual por sector')
+            title=f'Serie de tiempo {cadena} en {pais}')
     return lineplt
 
 def filter_df(data, key, value):
     sub_data = data[data[key] == value]
     return sub_data
 
-def create_forecast_plot(db, sector, pais):
-
-    test, predictions = fordat.forecast_prophet(db[sector])
-
+def create_forecast_plot(db, sector, pais, models):
     fig = go.Figure()
-    test_df = test.reset_index(name='test')
 
+    for model in models:
+        test, predictions_prophet = fordat.make_forecast(db[sector], model=model)
+        dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
+        fig.add_trace(go.Scatter(y=predictions_prophet,
+                                 x=dates,
+                                 mode='lines',
+                                 name=f'predictions {model}'))
+
+
+    test_df = test.reset_index(name='test')
     history = db[sector][-24:].reset_index(name='history')
     print(history)
+
     fig.add_trace(go.Scatter(y=history['history'],
                              x=history['Year_month'],
                              mode='lines+markers',
@@ -42,12 +49,6 @@ def create_forecast_plot(db, sector, pais):
                              x=test_df['Year_month'],
                              mode='lines+markers',
                              name='test'))
-    dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
-
-    fig.add_trace(go.Scatter(y=predictions,
-                             x= dates,
-                              mode='lines',
-                              name='predictions'))
 
     fig.update_layout(
         title=f"Prediccion ultimos meses {sector} en {pais}",
@@ -96,10 +97,6 @@ for i in range(len(sector_options)):
 all_options = dict(zip(available_Cadenas,subsectors_options))
 all_countries = filteredData["Country"].unique()
 
-## Create lineplot for user
-sub_data = filter_df(filteredData, 'Cadena', available_Cadenas[0])
-sub_data = filter_df(sub_data, 'Country', all_countries[0])
-lineplot = create_line_plot(sub_data)
 
 app.layout = html.Div([
     html.Div([html.H1('FORDAT: forecasting tool'),
@@ -132,13 +129,27 @@ app.layout = html.Div([
 ])
 
 eda_div =  html.Div([
-        dcc.Graph(id='map-plot'),#,  style={'display': 'inline-block'}),
-        dcc.Graph(id='line-plot')#,  style={'display': 'inline-block'}),
+    dcc.Loading(id='loading-1',
+                children=[html.Div([
+                        dcc.Graph(id='map-plot'),
+                        dcc.Graph(id='line-plot')
+                        ])
+        ])
     ])
 
 forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
-        html.Button('Make forecast', id='forecast-button', n_clicks=0),
+        html.Div([
+        dcc.Checklist(id='model-check',
+                      options=[
+                          {'label': 'Auto Arima', 'value': 'autoarima'},
+                          {'label': 'Prophet', 'value': 'prophet'},
+                      ],
+                      value=['prophet'],
+                      labelStyle={'display': 'inline-block'}
+                      ),
+        html.Button('Make forecast', id='forecast-button', n_clicks=0)
+        ], style={'display': 'inline-block'}),
         # dcc.Slider(id='future-months',
         #            min=1,
         #            max=60,
@@ -176,15 +187,16 @@ def update_forecast_title(cadena, sector, country):
     [Input(component_id='forecast-button', component_property='n_clicks')],
     [State(component_id='sectors-dropdown', component_property='value'),
     State(component_id='cadenas-dropdown', component_property='value'),
-    State(component_id='country-dropdown', component_property='value')]
+    State(component_id='country-dropdown', component_property='value'),
+    State(component_id='model-check', component_property='value')]
 )
-def update_forecast_div(n_clicks, sector, cadena, pais):
+def update_forecast_div(n_clicks, sector, cadena, pais, models):
     sub_data = filter_df(filteredData, 'Cadena', cadena)
     if not pais == None:
         sub_data = filter_df(sub_data, 'Country', pais)
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
-    forecast_plot = create_forecast_plot(db, sector, pais)
+    forecast_plot = create_forecast_plot(db, sector, pais, models)
     return forecast_plot
 
 
@@ -195,7 +207,7 @@ def update_forecast_div(n_clicks, sector, cadena, pais):
 def update_lineplot_div(cadena, pais):
     sub_data = filter_df(filteredData, 'Cadena', cadena)
     sub_data = filter_df(sub_data, 'Country', pais)
-    plot = create_line_plot(sub_data)
+    plot = create_line_plot(sub_data, cadena, pais)
     return plot
 
 @app.callback(Output('map-plot', 'figure'),
