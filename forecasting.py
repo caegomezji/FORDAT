@@ -90,6 +90,7 @@ def forecast_prophet(data):
     print('model defined')
     model.fit(data_model)
     # time.sleep(120)
+    # print(model.summary())
 
     print('model fitted')
     future_months = 12  # this variable is a slider in the app
@@ -99,5 +100,5 @@ def forecast_prophet(data):
     print('predicted')
     # in case you want to see its output
     print(forecast.head(2))
-    print(predictions)
+    # print(predictions)
     return test, predictions

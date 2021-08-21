@@ -1,6 +1,5 @@
 from flask import Flask
 import config
-
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -15,8 +14,9 @@ import forecasting as fordat
 
 def create_line_plot(data):
     # sub_data = data[data['Cadena 2020'] == cadena]
-    grp = data.groupby(by=['Sector', 'Year'])['FOBDOL'].sum().reset_index()
-    lineplt = px.line(grp, x='Year', y='FOBDOL', color='Sector',
+    # grp = data.groupby(by=['Sector', 'Year'])['FOBDOL'].sum().reset_index()
+    grp = data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().reset_index()
+    lineplt = px.line(grp, x='Year_month', y='FOBDOL', color='Sector',
             title='Serie de tiempo Anual por sector')
     return lineplt
 
@@ -27,9 +27,16 @@ def filter_df(data, key, value):
 def create_forecast_plot(db, sector, pais):
 
     test, predictions = fordat.forecast_prophet(db[sector])
-    print(predictions)
+
     fig = go.Figure()
     test_df = test.reset_index(name='test')
+
+    history = db[sector][-24:].reset_index(name='history')
+    print(history)
+    fig.add_trace(go.Scatter(y=history['history'],
+                             x=history['Year_month'],
+                             mode='lines+markers',
+                             name='history'))
 
     fig.add_trace(go.Scatter(y=test_df['test'],
                              x=test_df['Year_month'],
@@ -52,7 +59,7 @@ def create_forecast_plot(db, sector, pais):
     return fig
 
 
-external_stylesheets = [os.path.join('boostrap.css')]
+#external_stylesheets = [os.path.join('boostrap.css')]
 
 workspace_user = os.getenv('JUPYTERHUB_USER')  # Get DS4A Workspace user name
 request_path_prefix = None
@@ -110,28 +117,48 @@ app.layout = html.Div([
     ),
 
     html.Hr(),
-    html.Div(id='display-selected-values'),
-    html.Hr(),
-    html.Div([
-        dcc.Graph(id='map-plot',  style={'display': 'inline-block'}),
-        dcc.Graph(id='line-plot',  style={'display': 'inline-block'}),
-        dcc.Slider(id='future-months',
-                  min=1,
-                  max=60,
-                  value=1,
-                  step=None)
-    ]),
 
     html.Div([
+        dcc.Tabs(id="tabs-selection", value='tab-1', children=[
+            dcc.Tab(label='EDA', value='tab-1'),
+            dcc.Tab(label='Forecasting', value='tab-2'),
+        ], colors={
+            "border": "white",
+            "primary": "gold",
+            "background": "cornsilk"
+        }),
+        html.Div(id='tabs-div')
+    ])
+])
+
+eda_div =  html.Div([
+        dcc.Graph(id='map-plot'),#,  style={'display': 'inline-block'}),
+        dcc.Graph(id='line-plot')#,  style={'display': 'inline-block'}),
+    ])
+
+forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
         html.Button('Make forecast', id='forecast-button', n_clicks=0),
+        # dcc.Slider(id='future-months',
+        #            min=1,
+        #            max=60,
+        #            value=1,
+        #            step=None),
         dcc.Loading(
             id="loading-2",
             children=[html.Div([dcc.Graph(id='forecast-plot')])],
             type="circle",
         )
     ])
-])
+
+
+@app.callback(Output('tabs-div', 'children'),
+              Input('tabs-selection', 'value'))
+def render_content(tab):
+    if tab == 'tab-1':
+        return eda_div
+    elif tab == 'tab-2':
+        return forecast_div
 
 @app.callback(Output('forecast-title', 'children'),
     [Input('cadenas-dropdown', 'value'),
@@ -208,18 +235,6 @@ def update_figure(selected_cadena, selected_sector, selected_subsector):
     fig.update_layout(transition_duration=500)
     return fig
 
-@app.callback(
-    dash.dependencies.Output('display-selected-values', 'children'),
-    [dash.dependencies.Input('cadenas-dropdown', 'value'),
-     dash.dependencies.Input('sectors-dropdown', 'value'),
-     dash.dependencies.Input('subsectors-dropdown', 'value'),
-     dash.dependencies.Input('future-months','value')])
-def set_display_children(selected_cadena, selected_sector, selected_subsector,future_months):
-    future_months = int(future_months)*12
-    return u'{} is in {} of {} for {}'.format(
-        selected_subsector, selected_sector, selected_cadena, future_months
-    )
-
 
 ### Update dropdowns options and values callbakcs
 
@@ -262,4 +277,4 @@ print("READY")
 
 if __name__ == "__main__":
     
-    app.run_server(host=config.app_host , port=config.app_port, debug=config.app_debug)
+    app.run_server(host=config.app_host , port=config.app_port, debug=True)#config.app_debug)
