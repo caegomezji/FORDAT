@@ -11,6 +11,7 @@ pd.options.mode.chained_assignment = None # avoid warning of replacing data
 import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
+from funcion_scrap import news
 
 def create_line_plot(data, cadena, pais):
     # sub_data = data[data['Cadena 2020'] == cadena]
@@ -98,6 +99,26 @@ all_options = dict(zip(available_Cadenas,subsectors_options))
 all_countries = filteredData["Country"].unique()
 
 
+#Card generator for news
+def card_generator(Title,New_link,Source,Images_link): 
+    card = dbc.Card(
+        [
+            dbc.CardImg(src=Images_link,top=True),
+            dbc.CardBody(
+                [
+                    html.A(Title,href=New_link,target="_blank"),
+                    html.P(Source,
+                        className="card-text",
+                    ),
+
+                ]
+            ),
+        ],
+        style={"width": "18rem"},
+    )
+    return card
+
+
 app.layout = html.Div([
     html.Div([html.H1('FORDAT: forecasting tool'),
               html.Hr(),
@@ -119,6 +140,7 @@ app.layout = html.Div([
         dcc.Tabs(id="tabs-selection", value='tab-1', children=[
             dcc.Tab(label='EDA', value='tab-1'),
             dcc.Tab(label='Forecasting', value='tab-2'),
+            dcc.Tab(label='News',value='tab-3'),
         ], colors={
             "border": "white",
             "primary": "gold",
@@ -135,7 +157,10 @@ eda_div =  html.Div([
                         dcc.Graph(id='line-plot')
                         ])
         ])
+
     ])
+
+
 
 forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
@@ -162,14 +187,30 @@ forecast_div = html.Div([
         )
     ])
 
+#news_div = html.Div([
+#      dbc.Row(
+#    [
+#        dbc.Col(card_generator(Title,New_link,Source,Images_link),md=3) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
+#    ]),
+#])
 
 @app.callback(Output('tabs-div', 'children'),
-              Input('tabs-selection', 'value'))
-def render_content(tab):
+              Input('tabs-selection', 'value'),
+              State('sectors-dropdown','value'))
+def render_content(tab,sector):
     if tab == 'tab-1':
         return eda_div
     elif tab == 'tab-2':
         return forecast_div
+    elif tab == 'tab-3': 
+        news_link,titles,images,sources=news(sector+'economia')
+        news_div = html.Div([
+         dbc.Row(
+        [
+        dbc.Col(card_generator(Title,New_link,Source,Images_link),md=3) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
+        ]),
+    ])
+        return news_div
 
 @app.callback(Output('forecast-title', 'children'),
     [Input('cadenas-dropdown', 'value'),
