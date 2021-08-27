@@ -1,3 +1,5 @@
+from dash_html_components.H2 import H2
+from dash_html_components.Iframe import Iframe
 from flask import Flask
 import config
 import dash
@@ -29,7 +31,7 @@ def create_forecast_plot(db, sector, pais, models):
     fig = go.Figure()
 
     for model in models:
-        test, predictions_prophet = fordat.make_forecast(db[sector], model=model)
+        test, predictions_prophet= fordat.make_forecast(db[sector], model=model)
         dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
         fig.add_trace(go.Scatter(y=predictions_prophet,
                                  x=dates,
@@ -106,7 +108,7 @@ def card_generator(Title,New_link,Source,Images_link):
             dbc.CardImg(src=Images_link,top=True),
             dbc.CardBody(
                 [
-                    html.A(Title,href=New_link,target="_blank"),
+                    html.A(Title,href=New_link,target="_blank",),
                     html.P(Source,
                         className="card-text",
                     ),
@@ -114,7 +116,7 @@ def card_generator(Title,New_link,Source,Images_link):
                 ]
             ),
         ],
-        style={"width": "18rem"},
+        style={"max-width": "150px"},
     )
     return card
 
@@ -151,6 +153,7 @@ app.layout = html.Div([
 ])
 
 eda_div =  html.Div([
+    html.Div([
     dcc.Loading(id='loading-1',
                 children=[html.Div([
                         dcc.Graph(id='map-plot'),
@@ -158,7 +161,14 @@ eda_div =  html.Div([
                         ])
         ])
 
-    ])
+    ],
+    className="container",
+    style={"max-height": "500px"},
+    )],
+    className="container-fluid", 
+    style={"overflow-y":"scroll"},
+        )
+
 
 
 
@@ -184,32 +194,34 @@ forecast_div = html.Div([
             id="loading-2",
             children=[html.Div([dcc.Graph(id='forecast-plot')])],
             type="circle",
-        )
+        ),
+        html.Img(src='C:/users/Thesu/One Drive/Desktop')
     ])
 
-#news_div = html.Div([
-#      dbc.Row(
-#    [
-#        dbc.Col(card_generator(Title,New_link,Source,Images_link),md=3) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
-#    ]),
-#])
 
 @app.callback(Output('tabs-div', 'children'),
               Input('tabs-selection', 'value'),
-              State('sectors-dropdown','value'))
+              Input('sectors-dropdown','value'))
 def render_content(tab,sector):
     if tab == 'tab-1':
         return eda_div
     elif tab == 'tab-2':
         return forecast_div
     elif tab == 'tab-3': 
-        news_link,titles,images,sources=news(sector+'economia')
+        news_link,titles,images,sources=news(sector+' economia')
         news_div = html.Div([
-         dbc.Row(
-        [
-        dbc.Col(card_generator(Title,New_link,Source,Images_link),md=3) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
-        ]),
-    ])
+        html.Div([
+        dbc.Row(
+         [
+        dbc.Col(card_generator(Title,New_link,Source,Images_link),width=2) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
+            ]),
+        ],
+        className="container",
+        style={"max-height": "500px"},
+        )],
+        className="container-fluid",
+        style={"overflow-y":"scroll"},
+        )
         return news_div
 
 @app.callback(Output('forecast-title', 'children'),
@@ -232,14 +244,21 @@ def update_forecast_title(cadena, sector, country):
     State(component_id='model-check', component_property='value')]
 )
 def update_forecast_div(n_clicks, sector, cadena, pais, models):
+    
     sub_data = filter_df(filteredData, 'Cadena', cadena)
     if not pais == None:
         sub_data = filter_df(sub_data, 'Country', pais)
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
-    forecast_plot = create_forecast_plot(db, sector, pais, models)
+    forecast_plot   = create_forecast_plot(db, sector, pais, models)
+    #tabla = html.Iframe(
+
+    #)
+
     return forecast_plot
 
+       
+       
 
 @app.callback(Output('line-plot', 'figure'),
               [Input('cadenas-dropdown', 'value'),
@@ -283,13 +302,14 @@ def update_figure(selected_cadena, selected_sector, selected_subsector):
         my_df.drop(columns=["Cadena", "Sector", "Subsector"], inplace = True)
     
     country_exports = my_df.groupby([my_df["CodeCountry"]])["FOBDOL"].sum().reset_index()
-    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL")
+    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL",title='Colombian exports distribution map of {}'.format(selected_subsector))
+
     # fig.show()
     fig.update_layout(transition_duration=500)
     return fig
 
 
-### Update dropdowns options and values callbakcs
+### Update dropdowns options and values callbacks
 
 @app.callback(
     dash.dependencies.Output('country-dropdown', 'options'),

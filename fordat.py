@@ -51,7 +51,7 @@ for i in range(len(sector_options)):
 all_options = dict(zip(available_Cadenas,subsectors_options))
 
 
-opcion='cafe'
+opcion='agroalimentos'
 news_link,titles,images,sources=news(opcion+'economia')
 
 #Card generator for news
