@@ -5,6 +5,7 @@ from statsmodels.tools.eval_measures import rmse
 import pmdarima as pm
 from fbprophet import Prophet
 from time import time
+import matplotlib.pyplot as plt
 
 def make_forecast(data, model='prophet'):
 
@@ -37,6 +38,13 @@ def forecast_autoarima(data, future_months=12):
 
     predictions = model.predict(future_months)
 
+    plt.rc('figure', figsize=(6, 4))
+    #plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 12}) old approach
+    plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 8}, fontproperties = 'monospace') # approach improved by OP -> monospace!
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('output.png')
+    
     return predictions
 
 def forecast_prophet(data, future_months=12):
@@ -91,4 +99,4 @@ def forcast_arima(data):
     # plt.plot(predictions, color='red')
     # plt.show()
 
-    return test, predictions
+    return test, predictions    

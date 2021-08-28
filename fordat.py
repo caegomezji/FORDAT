@@ -14,6 +14,7 @@ import dash_bootstrap_components as dbc
 import os
 
 import plotly.express as px
+from funcion_scrap import news
 #import pycountry
 
 
@@ -49,6 +50,29 @@ for i in range(len(sector_options)):
 # zipping lists of cadenas, sectors, and subsectors
 all_options = dict(zip(available_Cadenas,subsectors_options))
 
+
+opcion='agroalimentos'
+news_link,titles,images,sources=news(opcion+'economia')
+
+#Card generator for news
+def card_generator(Title,New_link,Source,Images_link): 
+    card = dbc.Card(
+        [
+            dbc.CardImg(src=Images_link,top=True),
+            dbc.CardBody(
+                [
+                    html.A(Title,href=New_link,target="_blank"),
+                    html.P(Source,
+                        className="card-text",
+                    ),
+
+                ]
+            ),
+        ],
+        style={"width": "18rem"},
+    )
+    return card
+
 app.layout = html.Div([
     dcc.Dropdown(
         id='cadenas-dropdown',
@@ -72,7 +96,11 @@ app.layout = html.Div([
                   value=1,
                   marks={1: '1',2: '2',3: '3',4: '4', 5: '5'},
                   step=None)
-    ])
+    ]),
+    dbc.Row(
+    [
+        dbc.Col(card_generator(Title,New_link,Source,Images_link),md=3) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
+    ]),
 ])
 
 @app.callback(Output('graph-with-slider', 'figure'),
