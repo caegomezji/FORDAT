@@ -10,7 +10,7 @@ RUN pip install statsmodels
 
 RUN pip install pmdarima
 
-RUN pip install  fbprophet==0.7.1
+RUN pip install  fbprophet --no-cache
 
 RUN pip install bs4 lxml requests 
 WORKDIR /var/www 

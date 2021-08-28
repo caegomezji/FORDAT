@@ -49,4 +49,14 @@ def news(topic):
         dirty_font=source.find('div',attrs={'class':'SVJrMe'})
         Sources.append(dirty_font.a.string)
 
-    return News_link,Titles,Images_link,Sources
+    #Getting the dates:
+    Dates=[]
+    for date in articles:
+        dirty_date=date.find('div',attrs={'class':'SVJrMe'})
+        dating= dirty_date.find('time',attrs={'class':'WW6dff uQIVzc Sksgp'})
+        if dating: 
+            Dates.append(dating.string)
+        else:
+            Dates.append('date not found')          
+
+    return News_link,Titles,Images_link,Sources,Dates
