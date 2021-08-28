@@ -43,7 +43,7 @@ def forecast_autoarima(data, future_months=12):
     plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 8}, fontproperties = 'monospace') # approach improved by OP -> monospace!
     plt.axis('off')
     plt.tight_layout()
-    plt.savefig('output.png')
+    plt.savefig('autorima.png')
     
     return predictions
 

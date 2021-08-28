@@ -103,7 +103,7 @@ all_countries = filteredData["Country"].unique()
 
 
 #Card generator for news
-def card_generator(Title,New_link,Source,Images_link): 
+def card_generator(Title,New_link,Source,Images_link,Date): 
     card = dbc.Card(
         [
             dbc.CardImg(src=Images_link,top=True),
@@ -113,7 +113,8 @@ def card_generator(Title,New_link,Source,Images_link):
                     html.P(Source,
                         className="card-text",
                     ),
-
+                    html.P(Date,
+                        className="card-text"),
                 ]
             ),
         ],
@@ -177,7 +178,7 @@ def render_content(tab,sector):
     if tab == 'tab-1':
         return eda_div
     elif tab == 'tab-2':
-        image_filename = 'output.png' # replace with your own image
+        image_filename = 'autoarima.png' # replace with your own image
         encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 
         forecast_div = html.Div([
@@ -188,7 +189,7 @@ def render_content(tab,sector):
                           {'label': 'Auto Arima', 'value': 'autoarima'},
                           {'label': 'Prophet', 'value': 'prophet'},
                       ],
-                      value=['prophet'],
+                      value=[''],
                       labelStyle={'display': 'inline-block'}
                       ),
         html.Button('Make forecast', id='forecast-button', n_clicks=0)
@@ -212,16 +213,16 @@ def render_content(tab,sector):
 
 
     elif tab == 'tab-3': 
-        news_link,titles,images,sources=news(sector+' economia')
+        news_link,titles,images,sources,dates=news(sector+' economia')
         news_div = html.Div([
         html.Div([
         dbc.Row(
          [
-        dbc.Col(card_generator(Title,New_link,Source,Images_link),width=2) for Title,New_link,Source,Images_link in zip(titles,news_link,sources,images)
+        dbc.Col(card_generator(Title,New_link,Source,Images_link,Date),width=2) for Title,New_link,Source,Images_link,Date in zip(titles,news_link,sources,images,dates)
             ]),
         ],
         className="container",
-        style={"max-height": "500px"},
+        style={"max-height": "600px"},
         )],
         className="container-fluid",
         style={"overflow-y":"scroll"},
@@ -255,10 +256,6 @@ def update_forecast_div(n_clicks, sector, cadena, pais, models):
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
     forecast_plot   = create_forecast_plot(db, sector, pais, models)
-    #tabla = html.Iframe(
-
-    #)
-
     return forecast_plot
 
        
