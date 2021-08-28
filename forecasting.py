@@ -6,6 +6,24 @@ import pmdarima as pm
 from fbprophet import Prophet
 from time import time
 import matplotlib.pyplot as plt
+import pandas as pd
+import math
+
+def BIC(y_real, y_model):
+    n = len(y_real)
+    k = 2
+    resid = y_real - y_model
+    sse = sum(resid**2)
+    BIC_value = k * math.log(n) - 2 * math.log(sse)
+    return BIC_value
+
+def AIC(y_real, y_modelo):
+    resid = y_real - y_modelo
+    print(resid)
+    sse = sum(resid**2)
+    k = 1 # parameters
+    AIC_value = 2*k - 2*math.log(sse)
+    return AIC_value
 
 def make_forecast(data, model='prophet'):
 
@@ -37,15 +55,8 @@ def forecast_autoarima(data, future_months=12):
                           random_state=20, n_fits=10)
 
     predictions = model.predict(future_months)
-
-    plt.rc('figure', figsize=(6, 4))
-    #plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 12}) old approach
-    plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 8}, fontproperties = 'monospace') # approach improved by OP -> monospace!
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig('autorima.png')
     
-    return predictions
+    return pd.Series(predictions)
 
 def forecast_prophet(data, future_months=12):
 
@@ -66,9 +77,9 @@ def forecast_prophet(data, future_months=12):
     predictions = forecast.yhat
     print('predicted')
     # in case you want to see its output
-    print(forecast.head(2))
+    # print(forecast.head(2))
     # print(predictions)
-    return predictions
+    return predictions[-future_months:].reset_index()['yhat']
 
 def forcast_arima(data):
     # data[Sector ] == X

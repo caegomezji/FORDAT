@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import forecasting as fordat
 from funcion_scrap import news
 import base64
+from sklearn.metrics import r2_score
 
 def create_line_plot(data, cadena, pais):
     # sub_data = data[data['Cadena 2020'] == cadena]
@@ -31,18 +32,19 @@ def filter_df(data, key, value):
 def create_forecast_plot(db, sector, pais, models):
     fig = go.Figure()
 
+    predictions_df = pd.DataFrame()
     for model in models:
-        test, predictions_prophet= fordat.make_forecast(db[sector], model=model)
+        test, predictions = fordat.make_forecast(db[sector], model=model)
+        predictions_df[model] = predictions
+
         dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
-        fig.add_trace(go.Scatter(y=predictions_prophet,
+        fig.add_trace(go.Scatter(y=predictions,
                                  x=dates,
                                  mode='lines',
                                  name=f'predictions {model}'))
 
-
     test_df = test.reset_index(name='test')
     history = db[sector][-24:].reset_index(name='history')
-    print(history)
 
     fig.add_trace(go.Scatter(y=history['history'],
                              x=history['Year_month'],
@@ -61,7 +63,39 @@ def create_forecast_plot(db, sector, pais, models):
         # xaxis_tickformat='%d %B (%a)<br>%Y',
         legend_title="Data")
 
-    return fig
+    ## create table plot
+    predictions_df['dates'] = dates
+    # print(predictions_df)
+
+    table_fig = go.Figure(data=[go.Table(
+        header=dict(values=list(predictions_df.columns),
+                    align='left'),
+        cells=dict(values=[predictions_df[col] for col in predictions_df.columns],
+                   align='left'))
+    ])
+
+    ## calculate metrics
+    metrics_df = pd.DataFrame()
+    metrics = ['r2', 'AIC', 'BIC']
+    metrics_df['metric'] = metrics
+    test = test.values
+    pred = predictions_df[model][:6]
+    for model in models:
+        r2 = r2_score(test, pred)
+        aic = fordat.AIC(test, pred)
+        bic = fordat.BIC(test, pred)
+        metrics_df[model] = [r2, aic, bic]
+    print(metrics_df)
+
+
+    metrics_fig = go.Figure(data=[go.Table(
+        header=dict(values=list(metrics_df.columns),
+                    align='left'),
+        cells=dict(values=[metrics_df[col] for col in metrics_df.columns],
+                   align='left'))
+    ])
+
+    return fig, table_fig, metrics_fig
 
 
 #external_stylesheets = [os.path.join('boostrap.css')]
@@ -75,6 +109,8 @@ if workspace_user:
 ## server configurations
 server = Flask( config.app_name )
 app = dash.Dash( config.app_name, external_stylesheets=[dbc.themes.COSMO] , server=server)
+
+
 
 
 #from google.colab import drive
@@ -171,17 +207,8 @@ eda_div =  html.Div([
     style={"overflow-y":"scroll"},
         )
 
-@app.callback(Output('tabs-div', 'children'),
-              Input('tabs-selection', 'value'),
-              Input('sectors-dropdown','value'))
-def render_content(tab,sector):
-    if tab == 'tab-1':
-        return eda_div
-    elif tab == 'tab-2':
-        image_filename = 'autoarima.png' # replace with your own image
-        encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 
-        forecast_div = html.Div([
+forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
         html.Div([
         dcc.Checklist(id='model-check',
@@ -194,23 +221,29 @@ def render_content(tab,sector):
                       ),
         html.Button('Make forecast', id='forecast-button', n_clicks=0)
         ], style={'display': 'inline-block'}),
-        # dcc.Slider(id='future-months',
-        #            min=1,
-        #            max=60,
-        #            value=1,
-        #            step=None),
+
         dcc.Loading(
             id="loading-2",
-            children=[html.Div([dcc.Graph(id='forecast-plot'),
-                    html.Div([
-                    html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()))],
-                    className='container'),])],
+            children=[html.Div([
+                        dcc.Graph(id='forecast-plot'),
+                        html.Div([
+                            dcc.Graph(id='metric-table'),#src='data:image/png;base64,{}'.format(encoded_image.decode())),
+                            dcc.Graph(id='table-graph')],
+                            className="row")]
+            )],
             type="circle",
         ),
 
     ])
-        return forecast_div
 
+@app.callback(Output('tabs-div', 'children'),
+              Input('tabs-selection', 'value'),
+              Input('sectors-dropdown','value'))
+def render_content(tab,sector):
+    if tab == 'tab-1':
+        return eda_div
+    elif tab == 'tab-2':
+        return forecast_div
 
     elif tab == 'tab-3': 
         news_link,titles,images,sources,dates=news(sector+' economia')
@@ -241,7 +274,9 @@ def update_forecast_title(cadena, sector, country):
 
 ## Update forecast graph
 @app.callback(
-    Output(component_id='forecast-plot', component_property='figure'),
+    [Output(component_id='forecast-plot', component_property='figure'),
+     Output(component_id='table-graph', component_property='figure'),
+     Output(component_id='metric-table', component_property='figure')],
     [Input(component_id='forecast-button', component_property='n_clicks')],
     [State(component_id='sectors-dropdown', component_property='value'),
     State(component_id='cadenas-dropdown', component_property='value'),
@@ -255,11 +290,9 @@ def update_forecast_div(n_clicks, sector, cadena, pais, models):
         sub_data = filter_df(sub_data, 'Country', pais)
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
-    forecast_plot   = create_forecast_plot(db, sector, pais, models)
-    return forecast_plot
+    forecast_plot, forecast_df, metrics_df = create_forecast_plot(db, sector, pais, models)
 
-       
-       
+    return forecast_plot, forecast_df, metrics_df
 
 @app.callback(Output('line-plot', 'figure'),
               [Input('cadenas-dropdown', 'value'),
@@ -343,6 +376,11 @@ def set_landmarks_options(selected_cadena, selected_sector):
     [dash.dependencies.Input('subsectors-dropdown', 'options')])
 def set_landmarks_value(available_options):
     return available_options[0]['value']
+
+
+app.css.append_css({
+    'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
+})
 
 
 print("READY")
