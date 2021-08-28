@@ -38,13 +38,13 @@ def forecast_autoarima(data, future_months=12):
 
     predictions = model.predict(future_months)
 
-    plt.rc('figure', figsize=(12, 7))
+    plt.rc('figure', figsize=(6, 4))
     #plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 12}) old approach
-    plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 15}, fontproperties = 'monospace') # approach improved by OP -> monospace!
+    plt.text(0.01, 0.05, str(model.summary()), {'fontsize': 8}, fontproperties = 'monospace') # approach improved by OP -> monospace!
     plt.axis('off')
     plt.tight_layout()
     plt.savefig('output.png')
-
+    
     return predictions
 
 def forecast_prophet(data, future_months=12):

@@ -14,6 +14,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
 from funcion_scrap import news
+import base64
 
 def create_line_plot(data, cadena, pais):
     # sub_data = data[data['Cadena 2020'] == cadena]
@@ -169,10 +170,17 @@ eda_div =  html.Div([
     style={"overflow-y":"scroll"},
         )
 
+@app.callback(Output('tabs-div', 'children'),
+              Input('tabs-selection', 'value'),
+              Input('sectors-dropdown','value'))
+def render_content(tab,sector):
+    if tab == 'tab-1':
+        return eda_div
+    elif tab == 'tab-2':
+        image_filename = 'output.png' # replace with your own image
+        encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 
-
-
-forecast_div = html.Div([
+        forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
         html.Div([
         dcc.Checklist(id='model-check',
@@ -192,21 +200,17 @@ forecast_div = html.Div([
         #            step=None),
         dcc.Loading(
             id="loading-2",
-            children=[html.Div([dcc.Graph(id='forecast-plot')])],
+            children=[html.Div([dcc.Graph(id='forecast-plot'),
+                    html.Div([
+                    html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()))],
+                    className='container'),])],
             type="circle",
         ),
-        html.Img(src='C:/users/Thesu/One Drive/Desktop')
+
     ])
-
-
-@app.callback(Output('tabs-div', 'children'),
-              Input('tabs-selection', 'value'),
-              Input('sectors-dropdown','value'))
-def render_content(tab,sector):
-    if tab == 'tab-1':
-        return eda_div
-    elif tab == 'tab-2':
         return forecast_div
+
+
     elif tab == 'tab-3': 
         news_link,titles,images,sources=news(sector+' economia')
         news_div = html.Div([
@@ -302,10 +306,10 @@ def update_figure(selected_cadena, selected_sector, selected_subsector):
         my_df.drop(columns=["Cadena", "Sector", "Subsector"], inplace = True)
     
     country_exports = my_df.groupby([my_df["CodeCountry"]])["FOBDOL"].sum().reset_index()
-    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL",title='Colombian exports distribution map of {}'.format(selected_subsector))
-
+    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL",projection='natural earth',title='Colombian exports distribution map of {}'.format(selected_subsector))
+    fig.update_geos(showcountries=True,countrycolor='#1CA71C')
     # fig.show()
-    fig.update_layout(transition_duration=500)
+    fig.update_layout(height=500,transition_duration=450)
     return fig
 
 
