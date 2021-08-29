@@ -1,54 +1,60 @@
+from dash_html_components.H2 import H2
+from dash_html_components.Iframe import Iframe
 from flask import Flask
 import config
-
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
-
-
-from dash.dependencies import Input, Output
-
 import os
 import pandas as pd
 pd.options.mode.chained_assignment = None # avoid warning of replacing data
 import plotly.express as px
 import plotly.graph_objects as go
 import forecasting as fordat
+from funcion_scrap import news
+import base64
+from sklearn.metrics import r2_score
 
-
-
-def create_line_plot(data):
+def create_line_plot(data, cadena, pais):
     # sub_data = data[data['Cadena 2020'] == cadena]
-
-    grp = data.groupby(by=['Sector', 'Year'])['FOBDOL'].sum().reset_index()
-    lineplt = px.line(grp, x='Year', y='FOBDOL', color='Sector',
-            title='Serie de tiempo Anual por sector')
+    # grp = data.groupby(by=['Sector', 'Year'])['FOBDOL'].sum().reset_index()
+    grp = data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().reset_index()
+    lineplt = px.line(grp, x='Year_month', y='FOBDOL', color='Sector',
+            title=f'Serie de tiempo {cadena} en {pais}')
     return lineplt
 
 def filter_df(data, key, value):
     sub_data = data[data[key] == value]
     return sub_data
 
-
-def create_forecast_plot(db, sector, pais):
-
-    test, predictions = fordat.forecast_autoarima(db[sector])
-    print(predictions)
+def create_forecast_plot(db, sector, pais, models):
     fig = go.Figure()
+
+    predictions_df = pd.DataFrame()
+    for model in models:
+        test, predictions = fordat.make_forecast(db[sector], model=model)
+        predictions_df[model] = predictions
+
+        dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
+        fig.add_trace(go.Scatter(y=predictions,
+                                 x=dates,
+                                 mode='lines',
+                                 name=f'predictions {model}'))
+
     test_df = test.reset_index(name='test')
+    history = db[sector][-24:].reset_index(name='history')
+
+    fig.add_trace(go.Scatter(y=history['history'],
+                             x=history['Year_month'],
+                             mode='lines+markers',
+                             name='history'))
 
     fig.add_trace(go.Scatter(y=test_df['test'],
                              x=test_df['Year_month'],
                              mode='lines+markers',
                              name='test'))
-    dates = pd.date_range(test.index.min(), periods=len(test) + 12, freq='MS')
-
-    fig.add_trace(go.Scatter(y=predictions,
-                             x= dates,
-                              mode='lines',
-                              name='predictions'))
 
     fig.update_layout(
         title=f"Prediccion ultimos meses {sector} en {pais}",
@@ -57,10 +63,42 @@ def create_forecast_plot(db, sector, pais):
         # xaxis_tickformat='%d %B (%a)<br>%Y',
         legend_title="Data")
 
-    return fig
+    ## create table plot
+    predictions_df['dates'] = dates
+    # print(predictions_df)
+
+    table_fig = go.Figure(data=[go.Table(
+        header=dict(values=list(predictions_df.columns),
+                    align='left'),
+        cells=dict(values=[predictions_df[col] for col in predictions_df.columns],
+                   align='left'))
+    ])
+
+    ## calculate metrics
+    metrics_df = pd.DataFrame()
+    metrics = ['r2', 'AIC', 'BIC']
+    metrics_df['metric'] = metrics
+    test = test.values
+    pred = predictions_df[model][:6]
+    for model in models:
+        r2 = r2_score(test, pred)
+        aic = fordat.AIC(test, pred)
+        bic = fordat.BIC(test, pred)
+        metrics_df[model] = [r2, aic, bic]
+    print(metrics_df)
 
 
-external_stylesheets = [os.path.join('style.css')]
+    metrics_fig = go.Figure(data=[go.Table(
+        header=dict(values=list(metrics_df.columns),
+                    align='left'),
+        cells=dict(values=[metrics_df[col] for col in metrics_df.columns],
+                   align='left'))
+    ])
+
+    return fig, table_fig, metrics_fig
+
+
+#external_stylesheets = [os.path.join('boostrap.css')]
 
 workspace_user = os.getenv('JUPYTERHUB_USER')  # Get DS4A Workspace user name
 request_path_prefix = None
@@ -68,24 +106,20 @@ if workspace_user:
     request_path_prefix = '/user/' + workspace_user + '/proxy/8050/'
 
 
-
-
-
 ## server configurations
 server = Flask( config.app_name )
-app = dash.Dash( config.app_name, external_stylesheets=[dbc.themes.BOOTSTRAP] , server=server)
+app = dash.Dash( config.app_name, external_stylesheets=[dbc.themes.COSMO] , server=server)
+
 
 
 
 #from google.colab import drive
 #drive.mount('/content/drive',  force_remount=True)
-
 #folder_route = "/content/drive/MyDrive/Ds4 Computer Science/Procolombia project/data/"
 #df = pd.read_pickle(folder_route + "base_datos_corregida.pkl")
 
 df = pd.read_pickle(os.path.join('base_datos_corregida.pkl'))
-# getting useful data only
-#df = pd.read_csv('./Base_Completa_Exportaciones',encoding = "UTF-8", low_memory=False)
+
 filteredData = df[["Cadena 2020","Sector 2020","Subsector 2020","FOBDOL","Year_month","COD_PAI4","Destination country","RAZ_SIAL"]]
 filteredData.dropna(inplace=True)
 filteredData.columns = ["Cadena","Sector","Subsector","FOBDOL","Year_month","CodeCountry","Country","Empresa"]
@@ -103,63 +137,130 @@ for i in range(len(sector_options)):
 all_options = dict(zip(available_Cadenas,subsectors_options))
 all_countries = filteredData["Country"].unique()
 
-## Create lineplot for user
-sub_data = filter_df(filteredData, 'Cadena', available_Cadenas[0])
-sub_data = filter_df(sub_data, 'Country', all_countries[0])
-lineplot = create_line_plot(sub_data)
 
-# Create the forecast plot
-# sub_data = filter_df(df, 'Sector 2020', sector)
-# db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
-# test, prediction = fordat.forcast_arima(db[sector])
-# forecast_plot = create_forecast_plot(test, prediction)
+#Card generator for news
+def card_generator(Title,New_link,Source,Images_link,Date): 
+    card = dbc.Card(
+        [
+            dbc.CardImg(src=Images_link,top=True),
+            dbc.CardBody(
+                [
+                    html.A(Title,href=New_link,target="_blank",),
+                    html.P(Source,
+                        className="card-text",
+                    ),
+                    html.P(Date,
+                        className="card-text"),
+                ]
+            ),
+        ],
+        style={"max-width": "150px"},
+    )
+    return card
 
 
 app.layout = html.Div([
     html.Div([html.H1('FORDAT: forecasting tool'),
               html.Hr(),
               ]),
-
-    dcc.Dropdown(
-        id='cadenas-dropdown',
-        options=[{'label': k, 'value': k} for k in all_options.keys()],
-        value='Agroalimentos'
+    html.Div(
+    [
+        dcc.Dropdown( id='cadenas-dropdown', placeholder='Seleccione cadena',
+                     options=[{'label': k, 'value': k} for k in all_options.keys()],
+                    value='Agroalimentos'),
+        dcc.Dropdown(id='sectors-dropdown', placeholder='Selecione sector'),
+        dcc.Dropdown(id='subsectors-dropdown', placeholder='Selecione subsector'),
+        dcc.Dropdown(id='country-dropdown', value=all_countries[0], placeholder='Selecione pais')
+        ],   style={ "width": "50%"},
     ),
-    html.Hr(),
-    dcc.Dropdown(id='sectors-dropdown'),
-    html.Hr(),
-    dcc.Dropdown(id='subsectors-dropdown'),
-    html.Hr(),
-    dcc.Dropdown(id='country-dropdown', value=all_countries[0]),
-    html.Hr(),
-    html.Div(id='display-selected-values'),
-    html.Hr(),
-    html.Div([
-        dcc.Graph(id='graph-with-slider',  style={'display': 'inline-block'}),
-        dcc.Graph(id='line-plot',  style={'display': 'inline-block'}),
-        dcc.Slider(id='future-months',
-                  min=1,
-                  max=5,
-                  value=1,
-                  marks={1: '1',2: '2',3: '3',4: '4', 5: '5'},
-                  step=None)
-    ]),
 
-    # html.Div([
-    #     dcc.Graph(id='line-plot')
-    # ]),
+    html.Hr(),
+
     html.Div([
+        dcc.Tabs(id="tabs-selection", value='tab-1', children=[
+            dcc.Tab(label='EDA', value='tab-1'),
+            dcc.Tab(label='Forecasting', value='tab-2'),
+            dcc.Tab(label='News',value='tab-3'),
+        ], colors={
+            "border": "white",
+            "primary": "gold",
+            "background": "cornsilk"
+        }),
+        html.Div(id='tabs-div')
+    ])
+])
+
+eda_div =  html.Div([
+    html.Div([
+    dcc.Loading(id='loading-1',
+                children=[html.Div([
+                        dcc.Graph(id='map-plot'),
+                        dcc.Graph(id='line-plot')
+                        ])
+        ])
+
+    ],
+    className="container",
+    style={"max-height": "500px"},
+    )],
+    className="container-fluid", 
+    style={"overflow-y":"scroll"},
+        )
+
+
+forecast_div = html.Div([
         html.H2('Forecasting plot', id='forecast-title'),
-        html.Button('Make forecast', id='forecast-button', n_clicks=0),
+        html.Div([
+        dcc.Checklist(id='model-check',
+                      options=[
+                          {'label': 'Auto Arima', 'value': 'autoarima'},
+                          {'label': 'Prophet', 'value': 'prophet'},
+                      ],
+                      value=[''],
+                      labelStyle={'display': 'inline-block'}
+                      ),
+        html.Button('Make forecast', id='forecast-button', n_clicks=0)
+        ], style={'display': 'inline-block'}),
+
         dcc.Loading(
             id="loading-2",
-            children=[html.Div([dcc.Graph(id='forecast-plot')])],
+            children=[html.Div([
+                        dcc.Graph(id='forecast-plot'),
+                        html.Div([
+                            dcc.Graph(id='metric-table'),#src='data:image/png;base64,{}'.format(encoded_image.decode())),
+                            dcc.Graph(id='table-graph')],
+                            className="row")]
+            )],
             type="circle",
-        )
+        ),
 
     ])
 
-])
+@app.callback(Output('tabs-div', 'children'),
+              Input('tabs-selection', 'value'),
+              Input('sectors-dropdown','value'))
+def render_content(tab,sector):
+    if tab == 'tab-1':
+        return eda_div
+    elif tab == 'tab-2':
+        return forecast_div
+
+    elif tab == 'tab-3': 
+        news_link,titles,images,sources,dates=news(sector+' economia')
+        news_div = html.Div([
+        html.Div([
+        dbc.Row(
+         [
+        dbc.Col(card_generator(Title,New_link,Source,Images_link,Date),width=2) for Title,New_link,Source,Images_link,Date in zip(titles,news_link,sources,images,dates)
+            ]),
+        ],
+        className="container",
+        style={"max-height": "600px"},
+        )],
+        className="container-fluid",
+        style={"overflow-y":"scroll"},
+        )
+        return news_div
 
 @app.callback(Output('forecast-title', 'children'),
     [Input('cadenas-dropdown', 'value'),
@@ -167,24 +268,31 @@ app.layout = html.Div([
      # Input('subsectors-dropdown', 'value'),
      Input('country-dropdown','value')])
 def update_forecast_title(cadena, sector, country):
+    if country == None:
+        country = 'Global'
     return f'Prediccion de {sector} en {country}. Cadena: {cadena}'
 
 ## Update forecast graph
 @app.callback(
-    Output(component_id='forecast-plot', component_property='figure'),
+    [Output(component_id='forecast-plot', component_property='figure'),
+     Output(component_id='table-graph', component_property='figure'),
+     Output(component_id='metric-table', component_property='figure')],
     [Input(component_id='forecast-button', component_property='n_clicks')],
     [State(component_id='sectors-dropdown', component_property='value'),
     State(component_id='cadenas-dropdown', component_property='value'),
-    State(component_id='country-dropdown', component_property='value')]
+    State(component_id='country-dropdown', component_property='value'),
+    State(component_id='model-check', component_property='value')]
 )
-def update_forecast_div(n_clicks, sector, cadena, pais):
+def update_forecast_div(n_clicks, sector, cadena, pais, models):
+    
     sub_data = filter_df(filteredData, 'Cadena', cadena)
-    sub_data = filter_df(sub_data, 'Country', pais)
+    if not pais == None:
+        sub_data = filter_df(sub_data, 'Country', pais)
     db = sub_data.groupby(by=['Sector', 'Year_month'])['FOBDOL'].sum().unstack(0)
 
-    forecast_plot = create_forecast_plot(db, sector, pais)
-    return forecast_plot
+    forecast_plot, forecast_df, metrics_df = create_forecast_plot(db, sector, pais, models)
 
+    return forecast_plot, forecast_df, metrics_df
 
 @app.callback(Output('line-plot', 'figure'),
               [Input('cadenas-dropdown', 'value'),
@@ -193,16 +301,14 @@ def update_forecast_div(n_clicks, sector, cadena, pais):
 def update_lineplot_div(cadena, pais):
     sub_data = filter_df(filteredData, 'Cadena', cadena)
     sub_data = filter_df(sub_data, 'Country', pais)
-    plot = create_line_plot(sub_data)
+    plot = create_line_plot(sub_data, cadena, pais)
     return plot
 
-@app.callback(Output('graph-with-slider', 'figure'),
+@app.callback(Output('map-plot', 'figure'),
     [Input('cadenas-dropdown', 'value'),
      Input('sectors-dropdown', 'value'),
-     Input('subsectors-dropdown', 'value'),
-     Input('country-dropdown','value'),
-     Input('future-months','value')])
-def update_figure(selected_cadena, selected_sector, selected_subsector, selected_country, future_months):
+     Input('subsectors-dropdown', 'value')])
+def update_figure(selected_cadena, selected_sector, selected_subsector):
     b_cadena = 'Cadena == "'+selected_cadena+'"'
     if (selected_sector == None):
         userInterest = (filteredData.filter(
@@ -230,25 +336,20 @@ def update_figure(selected_cadena, selected_sector, selected_subsector, selected
         my_df.drop(columns=["Cadena", "Sector", "Subsector"], inplace = True)
     
     country_exports = my_df.groupby([my_df["CodeCountry"]])["FOBDOL"].sum().reset_index()
-    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL")
+    fig = px.scatter_geo(country_exports, locations="CodeCountry",size="FOBDOL",projection='natural earth',title='Colombian exports distribution map of {}'.format(selected_subsector))
+    fig.update_geos(showcountries=True,countrycolor='#1CA71C')
     # fig.show()
-    fig.update_layout(transition_duration=500)
+    fig.update_layout(height=500,transition_duration=450)
     return fig
-    #modelo for prediciton
-    #data = userInterest[["FOBDOL","Date"]]
-    #data.columns = ["y","ds"] # rename columns to the prophet library
-    #m = Prophet(interval_width=0.95, seasonality_mode='multiplicative')
-    #model = m.fit(data)
-    #future = m.make_future_dataframe(periods=future_months, freq='MS')
-    #forecast = m.predict(future)
-    #fig = m.plot(forecast)
-    #fig.update_layout(transition_duration=500)
-    
+
+
+### Update dropdowns options and values callbacks
+
 @app.callback(
     dash.dependencies.Output('country-dropdown', 'options'),
-    [dash.dependencies.Input('country-dropdown', 'value')])
-def set_cities_options(selected_country):
-    all_countries = filteredData["Country"].unique()
+    [dash.dependencies.Input('subsectors-dropdown', 'value')])
+def set_cities_options(subsector):
+    all_countries = filteredData[filteredData['Subsector']==subsector]['Country'].unique()
     return [{'label': i, 'value': i} for i in all_countries]
     
 @app.callback(
@@ -276,17 +377,10 @@ def set_landmarks_options(selected_cadena, selected_sector):
 def set_landmarks_value(available_options):
     return available_options[0]['value']
 
-@app.callback(
-    dash.dependencies.Output('display-selected-values', 'children'),
-    [dash.dependencies.Input('cadenas-dropdown', 'value'),
-     dash.dependencies.Input('sectors-dropdown', 'value'),
-     dash.dependencies.Input('subsectors-dropdown', 'value'),
-     dash.dependencies.Input('future-months','value')])
-def set_display_children(selected_cadena, selected_sector, selected_subsector,future_months):
-    future_months = int(future_months)*12
-    return u'{} is in {} of {} prediction for {}'.format(
-        selected_subsector, selected_sector, selected_cadena, future_months
-    )
+
+app.css.append_css({
+    'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
+})
 
 
 print("READY")
@@ -295,4 +389,4 @@ print("READY")
 
 if __name__ == "__main__":
     
-    app.run_server(host=config.app_host , port=config.app_port, debug=config.app_debug)
+    app.run_server(host=config.app_host , port=config.app_port, debug=True)#config.app_debug)

@@ -8,7 +8,7 @@ set -e
 ## run container
 docker run  -it --rm \
     --name  fordat  \
-    --net="host"  \
+    --net="host" \
     -v "$PWD":/var/www \
     caegomezji/fordat:latest \
     /bin/bash  # 
