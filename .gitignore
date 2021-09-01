@@ -6,6 +6,7 @@ __pycache__/
 
 #images
 *.png
+*:Zone.Identifier
 
 # C extensions
 *.so
