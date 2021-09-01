@@ -13,10 +13,10 @@ app_env = os.getenv('APP_ENV' , 'FORDAT')
 
 
 db_name = os.getenv('DB_NAME' , 'fordat')
-db_name = os.getenv('DB_USER' , 'postgres')
-db_name = os.getenv('APP_HOST' , 'localhost')
-db_name = os.getenv('DB_PORT' , '5432')
-db_name = os.getenv('DB_PASSWORD' , '')
-db_name = os.getenv('DB_SCHEMA' , '')
+db_user = os.getenv('DB_USER' , 'postgres')
+db_host = os.getenv('DB_HOST' , 'localhost')
+db_port = os.getenv('DB_PORT' , '5432')
+db_password = os.getenv('DB_PASSWORD' , '')
+db_schema = os.getenv('DB_SCHEMA' , '')
 
 kernels=os.getenv("SERVER_KERNELS" , 1)

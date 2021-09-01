@@ -2,7 +2,7 @@ FROM python:3.7
 
 RUN python3 -m pip install -U pip
 
-RUN pip install dash python-dotenv numpy pandas Flask-SQLAlchemy gunicorn dash-bootstrap-components
+RUN pip install dash python-dotenv numpy pandas psycopg2 gunicorn dash-bootstrap-components
 
 RUN python3 -m pip install -v pystan==2.19.1.1
 
