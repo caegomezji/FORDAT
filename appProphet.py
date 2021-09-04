@@ -31,8 +31,10 @@ def filter_df(data, key, value):
 
 def create_forecast_plot(db, sector, pais, models):
     fig = go.Figure()
+    models = models[1:]
 
     predictions_df = pd.DataFrame()
+    predictions_df['dates'] = []
     for model in models:
         test, predictions = fordat.make_forecast(db[sector], model=model)
         predictions_df[model] = predictions
@@ -64,8 +66,11 @@ def create_forecast_plot(db, sector, pais, models):
         legend_title="Data")
 
     ## create table plot
-    predictions_df['dates'] = dates
-    # print(predictions_df)
+    predictions_df['dates'] = dates.date
+    print(predictions_df)
+    # save dataframe for download
+    predictions_df.to_csv('./predictions.csv', index=False)
+
 
     table_fig = go.Figure(data=[go.Table(
         header=dict(values=list(predictions_df.columns),
@@ -77,7 +82,7 @@ def create_forecast_plot(db, sector, pais, models):
     ## calculate metrics
     metrics_df = pd.DataFrame()
     metrics = ['r2', 'AIC', 'BIC']
-    metrics_df['metric'] = metrics
+    metrics_df['metrics'] = metrics
     test = test.values
     pred = predictions_df[model][:6]
     for model in models:
@@ -227,9 +232,14 @@ forecast_div = html.Div([
             children=[html.Div([
                         dcc.Graph(id='forecast-plot'),
                         html.Div([
-                            dcc.Graph(id='metric-table'),#src='data:image/png;base64,{}'.format(encoded_image.decode())),
-                            dcc.Graph(id='table-graph')],
-                            className="row")]
+                            html.Div([
+                                dcc.Graph(id='metric-table'),#src='data:image/png;base64,{}'.format(encoded_image.decode())),
+                                dcc.Graph(id='table-graph')],
+                                className='row'),
+
+                            html.Button("Download Forecast CSV", id="btn_csv"),
+                            dcc.Download(id="download-dataframe-csv")
+                        ],style={'display': 'inline-block'})]
             )],
             type="circle",
         ),
@@ -262,6 +272,20 @@ def render_content(tab,sector):
         )
         return news_div
 
+# Download buttom
+@app.callback(
+    Output("download-dataframe-csv", "data"),
+    [Input("btn_csv", "n_clicks"),
+     State('sectors-dropdown', 'value'),
+     State('country-dropdown', 'value')],
+    prevent_initial_call=True,
+)
+def func(n_clicks, sector, pais):
+    df = pd.read_csv('./predictions.csv')
+    return dcc.send_data_frame(df.to_csv, f"forecasting_{sector}_{pais}.csv")
+
+
+## forecast title
 @app.callback(Output('forecast-title', 'children'),
     [Input('cadenas-dropdown', 'value'),
      Input('sectors-dropdown', 'value'),
@@ -378,10 +402,10 @@ def set_landmarks_value(available_options):
     return available_options[0]['value']
 
 
-app.css.append_css({
-    'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
-})
-
+# app.css.append_css({
+#     'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
+# })
+#
 
 print("READY")
 
