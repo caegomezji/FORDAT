@@ -1,4 +1,4 @@
-#!/bin/bash
+-#!/bin/bash
 
 set -e
 
@@ -6,9 +6,9 @@ set -e
 #docker build  --network="host" -t caegomezji/fordat:latest .
 
 ## run container
-docker run  -it --rm \
+docker run  -t --rm \
     --name  fordat  \
     --net="host" \
     -v "$PWD":/var/www \
     caegomezji/fordat:latest \
-    /bin/bash  # 
+    /bin/bash  -l -c "./serve.sh"
